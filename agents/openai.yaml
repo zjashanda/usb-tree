@@ -1,0 +1,10 @@
+interface:
+  display_name: "usbTree USB 串口树状工具"
+  short_description: "按板卡和 A/B/C/D 接口整理 USB 串口"
+  default_prompt: "使用 $usb-tree 检查当前 USB 串口，并按物理板卡、设备功能和 A/B/C/D 接口树状显示。"
+  icon_small: "../assets/usbTree.ico"
+  icon_large: "../assets/usbTree.ico"
+  brand_color: "#3EC9D6"
+
+policy:
+  allow_implicit_invocation: true
