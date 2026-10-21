@@ -308,9 +308,10 @@ def channel_text(channels):
 
 
 def audio_line(item):
-    return "%s  %s  %s" % (
-        item["direction"],
+    return "%s  %s  %s  %s" % (
+        item["direction"].ljust(7),
         channel_label(item["channels"]),
+        item["device_key"],
         item["friendly_name"],
     )
 

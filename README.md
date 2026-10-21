@@ -75,8 +75,8 @@ $skillDir = 'E:\aswxStation\tmpskill\102002usbTre'
 
 - 左栏是 USB 设备信息：上半部分为板卡树，下半部分显示选中串口/设备组/板卡/音频端点的详细信息。
 - 右栏是声卡信息：上半部分为全部活动音频端点列表，下半部分显示选中声卡的详细信息。
-- USB 板卡树中的“音频端点”分支只显示能与该板卡关联的端点；独立声卡只出现在右栏。
-- 声卡列表包含 USB 声卡和独立声卡，每行显示方向、状态、DeviceKey、通道数、显示名称和所属板卡。
+- USB 板卡树中的“音频端点”分支只显示能与该板卡关联的端点，每行按“方向、通道数、DeviceKey、显示名称”显示；独立声卡只出现在右栏。
+- 声卡列表包含 USB 声卡和独立声卡，每行显示方向、状态、通道数、显示名称、所属板卡和 DeviceKey。
 - 工具默认每 2 秒刷新，也支持手动刷新。点击左栏或右栏会切换复制范围，工具栏会显示“复制范围: USB 设备”或“复制范围: 声卡列表”。
 
 #### 复制与导出
@@ -116,8 +116,8 @@ $skillDir = 'E:\aswxStation\tmpskill\102002usbTre'
     ListenAI VCOM  (1 个串口)
       COM14
     音频端点  (2 个)
-      Capture  8ch  麦克风 (ListenAI Audio)
-      Render   2ch  扬声器 (ListenAI Audio)
+      Capture  8ch  VID_8765&PID_5678:9_2A847557_0_0000  麦克风 (ListenAI Audio)
+      Render   2ch  VID_8765&PID_5678:9_2A847557_0_0000  扬声器 (ListenAI Audio)
 ```
 
 常用参数：
@@ -177,7 +177,7 @@ chmod +x usbTree-linux usbTree-linux.py
 
 Linux 与 Windows 使用相同的参数和输出列：
 
-- 默认树与 Windows 一致：两空格缩进、板卡/设备功能/串口、CH344 的 A/B/C/D、`音频端点` 分支。
+- 默认树与 Windows 一致：两空格缩进、板卡/设备功能/串口、CH344 的 A/B/C/D、`音频端点` 分支；音频行依次显示方向、通道数、DeviceKey 和名称。
 - USB 声卡按 USB 上游路径合并到对应板卡；独立 ALSA 声卡只出现在声卡列表。
 - 声卡列表包含 Direction、State、DeviceKey、Channels、FriendlyName 和所属板卡；通道数从 `/proc/asound/card*/stream*` 尽力解析，未知时显示 `?`。
 - `--copy` 需要系统存在 `wl-copy`、`xclip`、`xsel` 或 `pbcopy`，否则只输出到终端并返回失败。

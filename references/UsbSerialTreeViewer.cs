@@ -1443,7 +1443,9 @@ internal static class PortReport
 
     internal static string AudioLine(AudioEndpointInfo endpoint)
     {
-        return endpoint.Direction + "  " + endpoint.ChannelLabel + "  " + endpoint.FriendlyName;
+        return (endpoint.Direction ?? string.Empty).PadRight(7) + "  " +
+            endpoint.ChannelLabel + "  " +
+            endpoint.DeviceKey + "  " + endpoint.FriendlyName;
     }
 
     public static string BuildPlain(List<PortInfo> ports)
