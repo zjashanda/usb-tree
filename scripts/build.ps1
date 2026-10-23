@@ -64,6 +64,36 @@ if ($CertificateThumbprint) {
     Write-Warning "未提供代码签名证书：usbTree.exe/usbTree-cli.exe 可能被 Windows 11 智能应用控制拦截。请优先使用 usbTree.cmd 或 usbTree-cli.cmd，或通过 -CertificateThumbprint 指定受信任的代码签名证书。"
 }
 
+$checksumFiles = @(
+    'SKILL.md',
+    'agents/openai.yaml',
+    'references/UsbSerialTreeViewer.cs',
+    'assets/usbTree.ico',
+    'scripts/usbTree.exe',
+    'scripts/usbTree-cli.exe',
+    'scripts/usbTree.dll',
+    'scripts/usbTree.ps1',
+    'scripts/usbTree-cli.ps1',
+    'scripts/usbTree.cmd',
+    'scripts/usbTree-cli.cmd',
+    'scripts/usbTree.vbs',
+    'scripts/usbTree-linux.py',
+    'scripts/usbTree-linux',
+    'scripts/build.ps1',
+    'scripts/make-icon.ps1'
+)
+$checksumLines = foreach ($relative in $checksumFiles) {
+    $path = Join-Path $skillRoot $relative
+    if (Test-Path -LiteralPath $path) {
+        $hash = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+        "$hash  $relative"
+    }
+}
+$checksumPath = Join-Path $skillRoot 'SHA256SUMS.txt'
+[IO.File]::WriteAllText($checksumPath, (($checksumLines -join "`n") + "`n"),
+    (New-Object Text.UTF8Encoding($false)))
+
 Write-Output "已生成: $output"
 Write-Output "已生成: $cliOutput"
 Write-Output "已生成: $libraryOutput"
+Write-Output "已生成: $checksumPath"
