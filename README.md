@@ -19,6 +19,7 @@
 - `scripts/usbTree.exe`
 - `scripts/usbTree.ps1`
 - `scripts/usbTree.vbs`
+- `SHA256SUMS.txt`
 - `SKILL.md`
 
 ## Install the skill
