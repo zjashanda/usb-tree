@@ -1,7 +1,7 @@
 interface:
   display_name: "usbTree USB 串口与声卡工具"
-  short_description: "按板卡整理 USB 串口和声卡，复制或导出两栏信息"
-  default_prompt: "使用 $usb-tree 检查当前 USB 串口与音频端点，按物理板卡、设备功能和 A/B/C/D 接口树状显示，右侧列出声卡，并按需复制或导出当前栏信息。"
+  short_description: "按板卡整理 USB 串口和声卡，复制/导出两栏信息"
+  default_prompt: "使用 $usb-tree 检查当前 USB 串口与音频端点，按物理板卡、设备功能和 A/B/C/D 接口树状显示，右侧列出声卡，并按需复制或导出当前栏信息；在开启智能应用控制的 Windows 11 上优先使用 usbTree.vbs 或 usbTree.cmd 启动。"
   icon_small: "../assets/usbTree.ico"
   icon_large: "../assets/usbTree.ico"
   brand_color: "#3EC9D6"

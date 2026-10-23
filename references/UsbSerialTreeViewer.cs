@@ -1716,6 +1716,23 @@ internal sealed class MainForm : Form
 
     public MainForm()
     {
+        try
+        {
+            string assemblyPath = typeof(MainForm).Assembly.Location;
+            if (!string.IsNullOrEmpty(assemblyPath))
+            {
+                string iconPath = Path.GetFullPath(Path.Combine(
+                    Path.GetDirectoryName(assemblyPath), "..", "assets", "usbTree.ico"));
+                if (File.Exists(iconPath))
+                {
+                    Icon = new Icon(iconPath);
+                }
+            }
+        }
+        catch
+        {
+        }
+
         Text = "USB 串口与声卡查看器";
         Width = 1440;
         Height = 780;
@@ -2730,5 +2747,22 @@ internal static class CliProgram
         text.AppendLine("  usbTree-cli.exe --format tree --copy");
 
         Console.WriteLine(text.ToString());
+    }
+}
+
+public static class UsbTreeLauncher
+{
+    [STAThread]
+    public static void RunGui()
+    {
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
+        Application.Run(new MainForm());
+    }
+
+    [STAThread]
+    public static int RunCli(string[] args)
+    {
+        return CliProgram.Run(args ?? new string[0]);
     }
 }

@@ -1,6 +1,6 @@
 ---
 name: usb-tree
-description: 按物理 USB 上游连接、PnP 父设备、Container ID 和 USB 音频身份自动树状整理 Windows COM 串口、Linux ttyUSB/ttyACM 串口及音频端点；提供 USB 设备与声卡两栏 GUI、按栏复制/导出、声卡列表和 usbTree-cli 终端输出；当用户需要确认串口/声卡是否属于同一块板卡、查看 CH344 A/B/C/D 接口映射、查看板卡对应声卡、复制或导出串口和声卡信息、运行 usbTree 工具或重建跨平台版本时使用。
+description: 按物理 USB 上游连接、PnP 父设备、Container ID 和 USB 音频身份自动树状整理 Windows COM 串口、Linux ttyUSB/ttyACM 串口及音频端点；提供 USB 设备与声卡两栏 GUI、按栏复制/导出、声卡列表、usbTree-cli 终端输出，以及 Windows 11 智能应用控制下的脚本启动器和可选代码签名；当用户需要确认串口/声卡是否属于同一块板卡、查看 CH344 A/B/C/D 接口映射、查看板卡对应声卡、复制或导出串口和声卡信息、运行 usbTree 工具或重建跨平台版本时使用。
 ---
 
 # usbTree USB 串口与声卡树状工具
@@ -48,6 +48,8 @@ GUI 固定为两栏：左侧是 USB 设备树（串口 + 归属该板卡的音�
 $skillDir = 'E:\aswxStation\tmpskill\102002usbTre'
 & "$skillDir\scripts\usbTree.exe"
 ```
+
+如果目标电脑开启了 Windows 11 智能应用控制（SAC），未签名的 `usbTree.exe` 可能在启动前被拦截。不要为了本工具关闭 SAC；改用 `scripts\usbTree.vbs`（推荐，无控制台窗口）或 `scripts\usbTree.cmd` 启动，详见下方“Windows 11 智能应用控制”。
 
 窗口分为两栏：
 
@@ -120,6 +122,37 @@ $skillDir = 'E:\aswxStation\tmpskill\102002usbTre'
 
 PowerShell 5.1 通过管道读取中文输出时可能按本地代码页解码。需要稳定文件结果时优先使用 `--out`，或先在终端执行 `chcp 65001`。
 
+#### Windows 11 智能应用控制（SAC）
+
+开启 SAC 的 Windows 11 会把未签名的 `usbTree.exe`/`usbTree-cli.exe` 当作不受信任应用拦截，程序可能连启动阶段都到不了，而且通常不能只放行单个文件。
+
+不要关闭 Smart App Control：它影响整台电脑的应用检查，关闭后可能需要重置或重装系统才能重新开启，也不应为了一个只读工具降低整机安全级别。
+
+优先使用随仓库提供的免 exe 启动器：
+
+- `scripts\usbTree.vbs`：双击启动 GUI，无控制台窗口，推荐。
+- `scripts\usbTree.cmd`：双击启动 GUI；在终端带参数运行时会转成命令行模式，例如 `usbTree.cmd --audio`。
+- `scripts\usbTree-cli.cmd --audio`、`--all`、`--format csv --out audio.csv`：命令行模式。
+- `scripts\usbTree.ps1` / `scripts\usbTree-cli.ps1`：直接调用 PowerShell 脚本的入口。
+
+这些入口调用系统自带、已签名的 64 位 Windows PowerShell 5.1，加载同目录的 `usbTree.dll`，不会启动未签名的 exe。需要 `usbTree.dll`、`usbTree.ps1`、`usbTree-cli.ps1` 和启动脚本保持在同一目录。不要用 PowerShell 7（`pwsh`）的 MTA 线程直接跑 GUI；`.cmd`/`.vbs` 已固定使用 Windows PowerShell 5.1（STA）。
+
+如果文件来自下载的 zip，先解除文件锁定：
+
+```powershell
+Get-ChildItem -LiteralPath '<skill目录>\scripts' -Recurse | Unblock-File
+```
+
+如果必须分发 exe，需要受信任的代码签名证书。SAC 还会结合应用信誉判断，新证书也可能被拦截，EV 代码签名证书最稳妥：
+
+```powershell
+Set-Location '<skill目录>\scripts'
+.\build.ps1 -CertificateThumbprint <证书指纹> `
+  -SignToolPath 'C:\Program Files (x86)\Windows Kits\10\bin\<版本>\x64\signtool.exe'
+```
+
+`build.ps1` 会同时签名 `usbTree.exe`、`usbTree-cli.exe` 和 `usbTree.dll`。证书默认按当前用户“个人/我的”证书存储查找；没有可信证书时请使用脚本启动器，不要用自签名证书冒充受信任发布者。若单位策略同时拦截 PowerShell 脚本，只能申请组织策略例外或使用已签名的 exe。
+
 CH344 端口按接口名称排序。例如当前设备的映射为：
 
 ```text
@@ -174,7 +207,9 @@ Set-Location "$skillDir\scripts"
 & .\build.ps1
 ```
 
-构建结果为 GUI 版 `scripts\usbTree.exe` 和命令行版 `scripts\usbTree-cli.exe`，源码来自 `references\UsbSerialTreeViewer.cs`，图标来自 `assets\usbTree.ico`。重新构建前需要关闭正在运行的两个程序，否则 Windows 会锁定 exe 文件。
+构建结果为 GUI 版 `scripts\usbTree.exe`、命令行版 `scripts\usbTree-cli.exe` 和供脚本启动器加载的 `scripts\usbTree.dll`，源码来自 `references\UsbSerialTreeViewer.cs`，图标来自 `assets\usbTree.ico`。重新构建前需要关闭正在运行的程序，否则 Windows 会锁定 exe/dll 文件。
+
+默认构建不签名。若在开启 Smart App Control 的电脑上必须直接运行 exe，请使用 `-CertificateThumbprint` 指定受信任代码签名证书，`build.ps1` 会签名 exe 和 dll；没有证书时使用 `usbTree.vbs`/`usbTree.cmd`/`usbTree-cli.cmd`。
 
 ## 分组规则
 
@@ -193,9 +228,12 @@ Linux 端按 USB 上游路径把串口和 USB 声卡归到同一板卡；ALSA �
 
 - `scripts/usbTree.exe`：Windows 只读两栏 WinForms 工具，显示 USB 树和声卡列表，支持按栏复制和导出。
 - `scripts/usbTree-cli.exe`：Windows 命令行输出 USB/声卡信息，支持复制和导出。
+- `scripts/usbTree.dll`：同一套 GUI/CLI 的托管程序集，供免 exe 启动器加载。
+- `scripts/usbTree.ps1`、`scripts/usbTree.cmd`、`scripts/usbTree.vbs`：GUI 启动器；`.vbs` 无控制台窗口。
+- `scripts/usbTree-cli.ps1`、`scripts/usbTree-cli.cmd`：命令行启动器。
 - `scripts/usbTree-linux`：Linux 启动器。
 - `scripts/usbTree-linux.py`：Linux 标准库实现，支持串口 + ALSA 声卡和与 Windows 一致的参数。
-- `scripts/build.ps1`：Windows 构建脚本。
+- `scripts/build.ps1`：Windows 构建脚本，可选代码签名。
 - `scripts/make-icon.ps1`：生成 USB 树状图标。
 - `references/UsbSerialTreeViewer.cs`：Windows 源码。
 - `assets/usbTree.ico`：Windows EXE 图标。
@@ -203,6 +241,8 @@ Linux 端按 USB 上游路径把串口和 USB 声卡归到同一板卡；ALSA �
 ## 限制与安全边界
 
 - 工具只读取设备枚举信息，不改变 COM 号、驱动、设备管理器树、USB 固件或 ALSA 配置。
+- Windows 11 智能应用控制可能拦截未签名的 exe。不要为本工具关闭 SAC；使用 `usbTree.vbs`/`usbTree.cmd`/`usbTree-cli.cmd`，或使用可信代码签名证书重新构建。若组织策略同时拦截脚本，需要申请策略例外或使用已签名 exe。
+- 免 exe 启动器依赖 64 位 Windows PowerShell 5.1（系统自带）和 `usbTree.dll`；不要把 dll、ps1 和启动脚本分开复制。文件来自下载压缩包时先 `Unblock-File`。
 - Windows 默认只列出活动音频端点；排查历史设备时使用 `--include-disabled`。禁用/未连接端点可能很多。
 - 剪贴板复制需要与工具处于同一个 Windows 用户会话；远程桌面、服务会话或无交互桌面可能无法访问剪贴板，此时改用 `--out` 导出文件。Linux 的 `--copy` 还要求安装 `wl-copy`、`xclip`、`xsel` 或 `pbcopy`。
 - 终端显示中文需要终端代码页支持 UTF-8；Windows Terminal、PowerShell 7 通常直接支持，旧版控制台可先执行 `chcp 65001`。
