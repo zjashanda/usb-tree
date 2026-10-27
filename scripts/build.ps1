@@ -84,10 +84,11 @@ $checksumFiles = @(
 )
 $checksumLines = foreach ($relative in $checksumFiles) {
     $path = Join-Path $skillRoot $relative
-    if (Test-Path -LiteralPath $path) {
-        $hash = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
-        "$hash  $relative"
+    if (-not (Test-Path -LiteralPath $path)) {
+        throw "缺少校验文件: $relative"
     }
+    $hash = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+    "$hash  $relative"
 }
 $checksumPath = Join-Path $skillRoot 'SHA256SUMS.txt'
 [IO.File]::WriteAllText($checksumPath, (($checksumLines -join "`n") + "`n"),

@@ -127,6 +127,8 @@ def is_multi_serial(label):
 
 def device_title(ports):
     label = ports[0]["label"]
+    if "USB TO MULTI SERIAL" in label.upper():
+        label = "USB To Multi Serial"
     return "%s  (%d 个串口)" % (label, len(ports))
 
 
@@ -155,12 +157,12 @@ def build_boards(ports):
     for board in boards:
         board["base_title"] = board_base_title(board["devices"])
         for device_ports in board["devices"].values():
-            device_ports.sort(key=lambda item: (item["interface"], item["name"]))
+            device_ports.sort(key=lambda item: (item["interface"], item["name"], item["device_path"]))
             if is_multi_serial(device_ports[0]["label"]):
                 for index, port in enumerate(device_ports):
                     port["interface_label"] = chr(ord("A") + index)
 
-    boards.sort(key=lambda item: item["base_title"])
+    boards.sort(key=lambda item: (item["base_title"], item["key"]))
     totals = Counter(board["base_title"] for board in boards)
     indexes = defaultdict(int)
     for board in boards:
@@ -319,6 +321,13 @@ def audio_line(item):
     )
 
 
+def sorted_device_items(board):
+    return sorted(
+        board["devices"].items(),
+        key=lambda pair: (pair[1][0]["label"], pair[0]),
+    )
+
+
 def render_tree(boards):
     if not boards:
         return "未发现当前连接的串口设备。"
@@ -330,10 +339,7 @@ def render_tree(boards):
     for board in boards:
         lines.append(indent + board["title"])
         device_indent = indent + "  "
-        device_items = sorted(
-            board["devices"].items(), key=lambda pair: pair[1][0]["label"]
-        )
-        for _device_key, device_ports in device_items:
+        for _device_key, device_ports in sorted_device_items(board):
             lines.append(device_indent + device_title(device_ports))
             port_indent = device_indent + "  "
             for port in device_ports:
@@ -350,9 +356,7 @@ def render_tree(boards):
 def render_plain(boards):
     lines = []
     for board in boards:
-        for _device_key, device_ports in sorted(
-            board["devices"].items(), key=lambda pair: pair[1][0]["label"]
-        ):
+        for _device_key, device_ports in sorted_device_items(board):
             for port in device_ports:
                 label = port["interface_label"]
                 lines.append(
@@ -381,9 +385,7 @@ def render_markdown(boards):
     lines.append("| 板卡 | 设备功能 | 接口 | 串口 | 显示名称 |")
     lines.append("| --- | --- | --- | --- | --- |")
     for board in boards:
-        for _device_key, device_ports in sorted(
-            board["devices"].items(), key=lambda pair: pair[1][0]["label"]
-        ):
+        for _device_key, device_ports in sorted_device_items(board):
             title = device_title(device_ports)
             for port in device_ports:
                 lines.append(
@@ -402,9 +404,7 @@ def render_markdown(boards):
 def render_csv(boards):
     lines = ["板卡,设备功能,接口,串口,显示名称,实例ID,父设备,ContainerID,位置路径"]
     for board in boards:
-        for _device_key, device_ports in sorted(
-            board["devices"].items(), key=lambda pair: pair[1][0]["label"]
-        ):
+        for _device_key, device_ports in sorted_device_items(board):
             title = device_title(device_ports)
             for port in device_ports:
                 lines.append(
@@ -436,9 +436,7 @@ def render_detail(boards):
 
     index = 1
     for board in boards:
-        for _device_key, device_ports in sorted(
-            board["devices"].items(), key=lambda pair: pair[1][0]["label"]
-        ):
+        for _device_key, device_ports in sorted_device_items(board):
             title = device_title(device_ports)
             for port in device_ports:
                 lines.append(
@@ -763,7 +761,14 @@ def main():
     if args.all:
         args.audio = False
 
-    new_mode = args.audio or args.all or args.out or args.copy or args.format is not None
+    new_mode = (
+        args.audio
+        or args.all
+        or args.out
+        or args.copy
+        or args.list
+        or args.format is not None
+    )
     one_shot = args.once or new_mode
     if args.watch:
         one_shot = False

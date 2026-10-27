@@ -4,6 +4,7 @@
 
 ## Skill layout
 
+- `.omo/run-continuation/ses_ea3d9ee5dffe1E4PcyLRiD361C.json`
 - `agents/openai.yaml`
 - `assets/usbTree.ico`
 - `references/UsbSerialTreeViewer.cs`
@@ -259,14 +260,14 @@ Set-Location "$skillDir\scripts"
 
 Windows 端优先使用以下信息：
 
-1. 物理板卡层：串口位置路径去掉最后的设备接口节点后形成的共享 USB 上游路径；没有 LocationPaths 时使用 PnP Parent。
-2. 设备功能层：通常使用 PnP `Container ID`；没有 LocationPaths 的多串口子设备（例如 WCH USB2MCOM/CH348）使用相同的 PnP Parent，避免每个 COM 被拆成独立设备。
-3. 串口层：FriendlyName 中的 `SERIAL-A..Z` 或 `Ch A..Z`；没有字母时按 COM 号排序。
+1. USB 设备层（硬分组）：优先使用 PnP `Parent`（父 USB 设备实例），没有 Parent 时才用 `Container ID`，再退回实例 ID。同一 Parent 的 COM 口视为同一个 USB 设备，例如 WCH USB2MCOM/CH348 的 8 个口、CH344 的 4 个口。
+2. 板卡层（软分组）：只对已知的 ListenAI CH344 + VCOM 组合，在同一共享上游路径下合并为 `ListenAI 板卡`；其他不同的 USB 设备即使接在同一个 Hub 下也保持独立板卡，避免把两块独立板卡误合并。
+3. 串口层：FriendlyName 中的 `SERIAL-A..Z` 或 `Ch A..Z`；没有字母时按 COM 号排序。板卡、设备功能、端口都有稳定的次级排序键，避免刷新后 `#1/#2` 互换。
 4. 音频层：声卡列表读取 MMDevices 的 Render/Capture 端点；与板卡关联时先比较 `Container ID`，再用 USB Key 尾标识/VID-PID 匹配串口实例。匹配不到或使用占位 Container ID 的声卡只保留在右侧声卡列表。
 
-Linux 端按 USB 上游路径把串口和 USB 声卡归到同一板卡；ALSA 声卡没有 PnP Container ID，独立声卡只出现在声卡列表。Linux 的 DeviceKey 使用 `VID_xxxx&PID_xxxx:尾标识`，EndpointId 使用 `cardN`，与 Windows 的端点 GUID 不要求相同。
+Linux 端按 USB 上游路径归组，ALSA 声卡没有 PnP Container ID，独立声卡只出现在声卡列表。Linux 的 DeviceKey 使用 `VID_xxxx&PID_xxxx:尾标识`，EndpointId 使用 `cardN`，与 Windows 的端点 GUID 不要求相同；Linux 尚未做与 Windows 完全相同的已知板卡合并规则，真机验证前不要把 Linux 的板卡层当作强保证。
 
-因此，工具可以把一个 USB Hub 后面的 CH344、ListenAI VCOM、WCH CH348 多串口板和音频端点可视化放在同一块板卡下，但不会伪造一个 Windows PnP 父设备。设备管理器仍会按 USB 设备描述符、设备地址和驱动关系分别枚举它们。
+因此，同一 USB 设备的多个串口会被可靠合并；已知 ListenAI 板卡保留 CH344 + VCOM 的板卡视图；其他多 USB 设备的产品会显示为多个独立设备，宁可拆开也不误合并。USB 设备层来自 Windows PnP 关系，板卡层是明确的产品规则，不伪造 PnP 父设备。
 
 ## 资源
 
@@ -290,7 +291,7 @@ Linux 端按 USB 上游路径把串口和 USB 声卡归到同一板卡；ALSA �
 - Windows 默认只列出活动音频端点；排查历史设备时使用 `--include-disabled`。禁用/未连接端点可能很多。
 - 剪贴板复制需要与工具处于同一个 Windows 用户会话；远程桌面、服务会话或无交互桌面可能无法访问剪贴板，此时改用 `--out` 导出文件。Linux 的 `--copy` 还要求安装 `wl-copy`、`xclip`、`xsel` 或 `pbcopy`。
 - 终端显示中文需要终端代码页支持 UTF-8；Windows Terminal、PowerShell 7 通常直接支持，旧版控制台可先执行 `chcp 65001`。
-- 共享上游路径表示 USB 拓扑关系，不能单独证明两个设备一定属于同一产品外壳；必要时还要结合 VID/PID、序列号、父设备和实际硬件确认。
+- 板卡层只对已知 ListenAI CH344+VCOM 组合做合并；其他 USB 设备即使共享上游 Hub 也保持独立。共享上游路径表示 USB 拓扑关系，不能单独证明两个设备属于同一产品外壳；必要时还要结合 VID/PID、序列号、父设备和实际硬件确认。
 - 音频端点与板卡的关联是启发式的：Container ID 最可靠，USB Key/VID-PID 是兜底。多块同型号板卡同时连接时，应以板卡声卡列表中的 DeviceKey 和所属板卡为准再复核。
 - Linux 版本需要目标主机有 Python 3，并且当前用户能读取 `/sys/class/tty` 和 `/proc/asound`；串口/声卡权限仍由 Linux 设备组和 udev/ALSA 规则决定。Linux 通道数解析是尽力而为，未实测硬件时不要宣称已验证。
 - 不要在 Skill 中保存 API 密钥、串口密码或其他凭据。

@@ -1,5 +1,17 @@
 ﻿$ErrorActionPreference = 'Stop'
 
+if (-not [Environment]::Is64BitProcess -and [Environment]::Is64BitOperatingSystem) {
+    $nativePowerShell = Join-Path $env:WINDIR 'Sysnative\WindowsPowerShell\v1.0\powershell.exe'
+    if (Test-Path -LiteralPath $nativePowerShell) {
+        if ($args.Count -eq 0) {
+            & $nativePowerShell -NoProfile -ExecutionPolicy Bypass -STA -WindowStyle Hidden -File $PSCommandPath
+        } else {
+            & $nativePowerShell -NoProfile -ExecutionPolicy Bypass -STA -File $PSCommandPath @args
+        }
+        exit $LASTEXITCODE
+    }
+}
+
 try {
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing

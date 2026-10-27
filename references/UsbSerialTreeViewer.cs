@@ -494,41 +494,108 @@ internal static class PortGrouper
             group.Ports.Add(port);
         }
 
-        Dictionary<string, BoardGroup> boards = new Dictionary<string, BoardGroup>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, List<PortGroup>> buckets = new Dictionary<string, List<PortGroup>>(StringComparer.OrdinalIgnoreCase);
         foreach (PortGroup group in groups.Values)
         {
-            string boardKey = PhysicalKey(group.Ports[0]);
-            BoardGroup board;
-            if (!boards.TryGetValue(boardKey, out board))
+            string physicalKey = PhysicalKey(group.Ports[0]);
+            List<PortGroup> bucket;
+            if (!buckets.TryGetValue(physicalKey, out bucket))
             {
-                board = new BoardGroup { Key = boardKey };
-                boards.Add(boardKey, board);
+                bucket = new List<PortGroup>();
+                buckets.Add(physicalKey, bucket);
             }
-            board.Devices.Add(group);
+            bucket.Add(group);
         }
 
-        List<BoardGroup> orderedBoards = new List<BoardGroup>(boards.Values);
-        orderedBoards.Sort(delegate(BoardGroup left, BoardGroup right)
+        List<BoardGroup> boards = new List<BoardGroup>();
+        foreach (KeyValuePair<string, List<PortGroup>> pair in buckets)
         {
-            return BoardTitle(left).CompareTo(BoardTitle(right));
-        });
-        AssignBoardTitles(orderedBoards);
+            if (TryCreateListenAiBoard(pair.Key, pair.Value, boards))
+            {
+                continue;
+            }
+            foreach (PortGroup group in pair.Value)
+            {
+                BoardGroup board = new BoardGroup { Key = "G:" + group.Key };
+                board.Devices.Add(group);
+                boards.Add(board);
+            }
+        }
 
-        foreach (BoardGroup board in orderedBoards)
+        boards.Sort(delegate(BoardGroup left, BoardGroup right)
+        {
+            int compare = BoardTitle(left).CompareTo(BoardTitle(right));
+            if (compare != 0)
+            {
+                return compare;
+            }
+            return string.Compare(left.Key, right.Key, StringComparison.OrdinalIgnoreCase);
+        });
+        AssignBoardTitles(boards);
+
+        foreach (BoardGroup board in boards)
         {
             board.Devices.Sort(delegate(PortGroup left, PortGroup right)
             {
-                return left.Title.CompareTo(right.Title);
+                int compare = left.Title.CompareTo(right.Title);
+                if (compare != 0)
+                {
+                    return compare;
+                }
+                return string.Compare(left.Key, right.Key, StringComparison.OrdinalIgnoreCase);
             });
             foreach (PortGroup group in board.Devices)
             {
                 group.Ports.Sort(delegate(PortInfo left, PortInfo right)
                 {
-                    return InterfaceOrder(left).CompareTo(InterfaceOrder(right));
+                    int compare = InterfaceOrder(left).CompareTo(InterfaceOrder(right));
+                    if (compare != 0)
+                    {
+                        return compare;
+                    }
+                    compare = ComNumber(left.ComName).CompareTo(ComNumber(right.ComName));
+                    if (compare != 0)
+                    {
+                        return compare;
+                    }
+                    return string.Compare(left.InstanceId, right.InstanceId, StringComparison.OrdinalIgnoreCase);
                 });
             }
         }
-        return orderedBoards;
+        return boards;
+    }
+
+    private static bool TryCreateListenAiBoard(
+        string physicalKey, List<PortGroup> groups, List<BoardGroup> boards)
+    {
+        if (groups.Count != 2)
+        {
+            return false;
+        }
+
+        PortGroup listenAi = null;
+        PortGroup ch344 = null;
+        foreach (PortGroup group in groups)
+        {
+            if (listenAi == null && IsListenAi(group))
+            {
+                listenAi = group;
+            }
+            else if (ch344 == null && IsCh344(group))
+            {
+                ch344 = group;
+            }
+        }
+        if (listenAi == null || ch344 == null)
+        {
+            return false;
+        }
+
+        BoardGroup board = new BoardGroup { Key = "B:" + physicalKey };
+        board.Devices.Add(listenAi);
+        board.Devices.Add(ch344);
+        boards.Add(board);
+        return true;
     }
 
     public static List<BoardGroup> Build(List<PortInfo> ports, List<AudioEndpointInfo> audio)
@@ -540,12 +607,7 @@ internal static class PortGrouper
 
     public static int CountBoards(List<PortInfo> ports)
     {
-        Dictionary<string, bool> groups = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-        foreach (PortInfo port in ports)
-        {
-            groups[PhysicalKey(port)] = true;
-        }
-        return groups.Count;
+        return Build(ports).Count;
     }
 
     private static void AssignBoardTitles(List<BoardGroup> boards)
@@ -575,7 +637,7 @@ internal static class PortGrouper
 
     internal static string GroupKey(PortInfo port)
     {
-        if (UseParentAsDeviceKey(port))
+        if (!string.IsNullOrEmpty(port.Parent))
         {
             return "P:" + port.Parent;
         }
@@ -583,16 +645,7 @@ internal static class PortGrouper
         {
             return "C:" + port.ContainerId;
         }
-        if (!string.IsNullOrEmpty(port.Parent))
-        {
-            return "P:" + port.Parent;
-        }
         return "I:" + port.InstanceId;
-    }
-
-    private static bool UseParentAsDeviceKey(PortInfo port)
-    {
-        return string.IsNullOrEmpty(port.LocationPaths) && !string.IsNullOrEmpty(port.Parent);
     }
 
     internal static string PhysicalKey(PortInfo port)
@@ -663,6 +716,23 @@ internal static class PortGrouper
         return false;
     }
 
+    private static bool IsCh344(PortGroup group)
+    {
+        if ((group.DeviceLabel ?? string.Empty).IndexOf("CH344", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return true;
+        }
+        foreach (PortInfo port in group.Ports)
+        {
+            string ids = (port.InstanceId ?? string.Empty) + " " + (port.HardwareIds ?? string.Empty);
+            if (ids.IndexOf("VID_1A86&PID_55D5", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static string BoardTitle(BoardGroup board)
     {
         foreach (PortGroup device in board.Devices)
@@ -672,7 +742,7 @@ internal static class PortGrouper
                 return "ListenAI 板卡";
             }
         }
-        return board.Devices.Count == 1 ? "USB 板卡" : "USB 板卡（共享上游连接）";
+        return "USB 板卡";
     }
 
     internal static string InterfaceLabel(PortInfo port)
@@ -881,7 +951,9 @@ internal static class AudioEndpointReader
             return -1;
         }
 
-        int offset = (bytes.Length >= 8 && BitConverter.ToUInt32(bytes, 0) == 65) ? 8 : 0;
+        int offset = (bytes.Length >= 8 &&
+                      BitConverter.ToUInt32(bytes, 0) == 65 &&
+                      BitConverter.ToUInt32(bytes, 4) == 1) ? 8 : 0;
         if (bytes.Length < offset + 4)
         {
             return -1;
@@ -2003,8 +2075,14 @@ internal sealed class MainForm : Form
             value.Append(port.InstanceId).Append('|')
                 .Append(port.ComName).Append('|')
                 .Append(port.Parent).Append('|')
+                .Append(port.ParentName).Append('|')
                 .Append(port.ContainerId).Append('|')
-                .Append(port.FriendlyName).Append('\n');
+                .Append(port.FriendlyName).Append('|')
+                .Append(port.BusDescription).Append('|')
+                .Append(port.DeviceDescription).Append('|')
+                .Append(port.Manufacturer).Append('|')
+                .Append(port.HardwareIds).Append('|')
+                .Append(port.LocationPaths).Append('\n');
         }
         foreach (AudioEndpointInfo endpoint in audio)
         {
