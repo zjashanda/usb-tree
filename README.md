@@ -1,6 +1,6 @@
 # usb-tree
 
-按物理 USB 上游连接、PnP 父设备、Container ID 和 USB 音频身份自动树状整理 Windows COM 串口、Linux ttyUSB/ttyACM 串口及音频端点；提供 USB 设备与声卡两栏 GUI、按栏复制/导出、声卡列表、usbTree-cli 终端输出，以及 Windows 11 智能应用控制下的脚本启动器和可选代码签名；当用户需要确认串口/声卡是否属于同一块板卡、查看 CH344 A/B/C/D 接口映射、查看板卡对应声卡、复制或导出串口和声卡信息、运行 usbTree 工具或重建跨平台版本时使用。
+按物理 USB 上游连接、PnP 父设备、Container ID 和 USB 音频身份自动树状整理 Windows COM 串口、Linux ttyUSB/ttyACM 串口及音频端点；提供 USB 设备与声卡两栏 GUI、按栏复制/导出、声卡列表、usbTree-cli 终端输出，以及 Windows 11 智能应用控制下的脚本启动器和可选代码签名；当用户需要确认串口/声卡是否属于同一块板卡、查看 CH344 A-D、CH348 A-H 接口映射、查看板卡对应声卡、复制或导出串口和声卡信息、运行 usbTree 工具或重建跨平台版本时使用。
 
 ## Skill layout
 
@@ -60,7 +60,7 @@ GUI 固定为两栏：左侧是 USB 设备树（串口 + 归属该板卡的音�
 
 - 查看 USB 串口和声卡，并按板卡而不是只按 COM 编号/设备名排列。
 - 判断 CH344、ListenAI VCOM、USB 音频端点是否来自同一根 USB 连接/同一块板卡。
-- 需要按 CH344 的 `SERIAL-A`、`SERIAL-B`、`SERIAL-C`、`SERIAL-D` 顺序显示 COM 号。
+- 需要按 CH344 的 `SERIAL-A..D` 或 CH348 的 `Ch A..H` 顺序显示 COM 号。
 - 需要查看某块板卡对应的 Render/Capture 声卡，或列出电脑上全部活动音频端点。
 - 不想手抄串口/声卡信息，需要在 GUI 复制当前栏的选中项或全部信息，或导出 TXT、CSV、Markdown。
 - 需要在终端直接查看与 GUI 一致的串口和声卡信息，例如写脚本、记录测试环境。
@@ -92,7 +92,7 @@ $skillDir = 'E:\aswxStation\tmpskill\102002usbTre'
 
 工具栏：
 
-- `复制选中`：复制当前点击栏中的选中项。USB 栏复制树节点详情；声卡栏复制该声卡的完整信息。
+- `复制选中`：复制当前点击栏中的选中项。USB 栏选中板卡或设备功能时，复制该节点及子节点的树状结构（含父板卡标题）；选中串口时复制详细 PnP 信息；声卡栏复制选中声卡的完整信息。
 - `复制全部`：按“复制格式”复制当前点击栏的全部信息。
 - `复制格式`：`摘要`、`简单列表`、`Markdown`、`CSV`、`详细信息`、`全部（USB+声卡）`。
   - USB 栏的 `摘要` 是板卡树；声卡栏的 `摘要` 是声卡表。
@@ -193,6 +193,21 @@ D  COM12
 
 ListenAI VCOM 显示为单独的设备功能，例如 `COM14`。如果电脑上存在多个相同名称的板卡，工具会自动添加 `#1`、`#2` 编号。
 
+多串口子设备（例如 WCH USB2MCOM/CH348，设备管理器显示 `Ch A` 到 `Ch H`）没有 LocationPaths，但共享同一个 PnP Parent。工具会按 Parent 把它们合并成一个设备功能，并按 `Ch A..Ch H` 显示 `A` 到 `H`，不会再把每个 COM 当成独立板卡。8 口板会显示为类似：
+
+```text
+USB 板卡
+  USB To Multi Serial  (8 个串口)
+    A  COM3
+    B  COM8
+    C  COM4
+    D  COM7
+    E  COM5
+    F  COM10
+    G  COM9
+    H  COM6
+```
+
 音频端点优先按 PnP `Container ID` 关联到对应板卡；缺失时用 USB 设备 Key 中的尾标识与串口实例匹配。`{00000000-0000-0000-FFFF-FFFFFFFFFFFF}` 这类占位 Container ID 会被忽略，避免把主板/Realtek 声卡误挂到串口板卡。
 
 ### Linux
@@ -244,14 +259,14 @@ Set-Location "$skillDir\scripts"
 
 Windows 端优先使用以下信息：
 
-1. 物理板卡层：串口位置路径去掉最后的设备接口节点后形成的共享 USB 上游路径。
-2. 设备功能层：PnP `Container ID`，缺失时使用父设备实例，再缺失时使用串口实例 ID。
-3. 串口层：FriendlyName 中的 `SERIAL-A/B/C/D`；没有字母时按 COM 号排序。
+1. 物理板卡层：串口位置路径去掉最后的设备接口节点后形成的共享 USB 上游路径；没有 LocationPaths 时使用 PnP Parent。
+2. 设备功能层：通常使用 PnP `Container ID`；没有 LocationPaths 的多串口子设备（例如 WCH USB2MCOM/CH348）使用相同的 PnP Parent，避免每个 COM 被拆成独立设备。
+3. 串口层：FriendlyName 中的 `SERIAL-A..Z` 或 `Ch A..Z`；没有字母时按 COM 号排序。
 4. 音频层：声卡列表读取 MMDevices 的 Render/Capture 端点；与板卡关联时先比较 `Container ID`，再用 USB Key 尾标识/VID-PID 匹配串口实例。匹配不到或使用占位 Container ID 的声卡只保留在右侧声卡列表。
 
 Linux 端按 USB 上游路径把串口和 USB 声卡归到同一板卡；ALSA 声卡没有 PnP Container ID，独立声卡只出现在声卡列表。Linux 的 DeviceKey 使用 `VID_xxxx&PID_xxxx:尾标识`，EndpointId 使用 `cardN`，与 Windows 的端点 GUID 不要求相同。
 
-因此，工具可以把一个 USB Hub 后面的 CH344、ListenAI VCOM 和音频端点可视化放在同一块板卡下，但不会伪造一个 Windows PnP 父设备。设备管理器仍会按 USB 设备描述符、设备地址和驱动关系分别枚举它们。
+因此，工具可以把一个 USB Hub 后面的 CH344、ListenAI VCOM、WCH CH348 多串口板和音频端点可视化放在同一块板卡下，但不会伪造一个 Windows PnP 父设备。设备管理器仍会按 USB 设备描述符、设备地址和驱动关系分别枚举它们。
 
 ## 资源
 

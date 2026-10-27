@@ -118,8 +118,11 @@ def collect_ports():
     return ports
 
 
-def is_quad(label):
-    return "CH344" in label or "QUAD_SERIAL" in label.upper()
+def is_multi_serial(label):
+    upper = label.upper()
+    return any(token in upper for token in (
+        "CH344", "CH348", "QUAD_SERIAL", "MULTI SERIAL"
+    ))
 
 
 def device_title(ports):
@@ -153,7 +156,7 @@ def build_boards(ports):
         board["base_title"] = board_base_title(board["devices"])
         for device_ports in board["devices"].values():
             device_ports.sort(key=lambda item: (item["interface"], item["name"]))
-            if is_quad(device_ports[0]["label"]):
+            if is_multi_serial(device_ports[0]["label"]):
                 for index, port in enumerate(device_ports):
                     port["interface_label"] = chr(ord("A") + index)
 

@@ -27,7 +27,7 @@ internal static class NativeMethods
     internal static readonly Guid PortsClassGuid = new Guid("4D36E978-E325-11CE-BFC1-08002BE10318");
     internal static readonly Guid AudioEndpointClassGuid = new Guid("C166523C-FE0C-4A94-A586-F1A80CFBBF3E");
     internal static readonly DevPropKey DeviceParent = new DevPropKey(
-        new Guid("83DA6326-97A6-4088-9453-A1923F573B29"), 8);
+        new Guid("4340A6C5-93FA-4706-972C-7B648008A5A7"), 8);
     internal static readonly DevPropKey DeviceContainerId = new DevPropKey(
         new Guid("8C7ED206-3F8A-4827-B3AB-AE9E1FAEFC6C"), 2);
     internal static readonly DevPropKey DeviceLocationPaths = new DevPropKey(
@@ -575,6 +575,10 @@ internal static class PortGrouper
 
     internal static string GroupKey(PortInfo port)
     {
+        if (UseParentAsDeviceKey(port))
+        {
+            return "P:" + port.Parent;
+        }
         if (!string.IsNullOrEmpty(port.ContainerId))
         {
             return "C:" + port.ContainerId;
@@ -586,9 +590,19 @@ internal static class PortGrouper
         return "I:" + port.InstanceId;
     }
 
+    private static bool UseParentAsDeviceKey(PortInfo port)
+    {
+        return string.IsNullOrEmpty(port.LocationPaths) && !string.IsNullOrEmpty(port.Parent);
+    }
+
     internal static string PhysicalKey(PortInfo port)
     {
         string paths = port.LocationPaths ?? string.Empty;
+        if (string.IsNullOrEmpty(paths))
+        {
+            return GroupKey(port);
+        }
+
         string[] lines = paths.Split(new[] { '\r', '\n', '\0' }, StringSplitOptions.RemoveEmptyEntries);
         foreach (string line in lines)
         {
@@ -621,6 +635,10 @@ internal static class PortGrouper
         if (all.IndexOf("ListenAI", StringComparison.OrdinalIgnoreCase) >= 0)
         {
             return "ListenAI VCOM";
+        }
+        if (all.IndexOf("USB To Multi Serial", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return "USB To Multi Serial";
         }
         if (!string.IsNullOrEmpty(port.BusDescription))
         {
@@ -659,7 +677,12 @@ internal static class PortGrouper
 
     internal static string InterfaceLabel(PortInfo port)
     {
-        Match match = Regex.Match(port.FriendlyName ?? string.Empty, @"SERIAL-([A-Z])", RegexOptions.IgnoreCase);
+        string name = port.FriendlyName ?? string.Empty;
+        Match match = Regex.Match(name, @"SERIAL-([A-Z])", RegexOptions.IgnoreCase);
+        if (!match.Success)
+        {
+            match = Regex.Match(name, @"\bCh\s*([A-Z])\b", RegexOptions.IgnoreCase);
+        }
         return match.Success ? match.Groups[1].Value.ToUpperInvariant() : string.Empty;
     }
 
@@ -1015,10 +1038,13 @@ internal static class AudioEndpointMapper
             {
                 foreach (PortGroup group in board.Devices)
                 {
-                    if (IsUsableContainer(group.ContainerId) &&
-                        NormalizeGuid(group.ContainerId) == container)
+                    foreach (PortInfo port in group.Ports)
                     {
-                        return board;
+                        if (IsUsableContainer(port.ContainerId) &&
+                            NormalizeGuid(port.ContainerId) == container)
+                        {
+                            return board;
+                        }
                     }
                 }
             }
@@ -1439,6 +1465,30 @@ internal static class PortReport
                 text.Append(deviceIndent).Append("  ").AppendLine(AudioLine(endpoint));
             }
         }
+    }
+
+    public static string BuildBoardTree(BoardGroup board)
+    {
+        StringBuilder text = new StringBuilder();
+        AppendBoard(text, board, string.Empty);
+        return text.ToString();
+    }
+
+    public static string BuildGroupTree(PortGroup group, string boardTitle)
+    {
+        StringBuilder text = new StringBuilder();
+        string indent = string.Empty;
+        if (!string.IsNullOrEmpty(boardTitle))
+        {
+            text.AppendLine(boardTitle);
+            indent = "  ";
+        }
+        text.Append(indent).AppendLine(group.Title);
+        foreach (PortInfo port in group.Ports)
+        {
+            text.Append(indent).Append("  ").AppendLine(PortGrouper.PortTitle(port));
+        }
+        return text.ToString();
     }
 
     internal static string AudioLine(AudioEndpointInfo endpoint)
@@ -2287,12 +2337,13 @@ internal sealed class MainForm : Form
             }
             else if (group != null)
             {
-                text = PortReport.FormatGroup(group);
+                BoardGroup parentBoard = node.Parent == null ? null : node.Parent.Tag as BoardGroup;
+                text = PortReport.BuildGroupTree(group, parentBoard == null ? null : parentBoard.Title);
                 label = group.Title;
             }
             else if (board != null)
             {
-                text = PortReport.FormatBoard(board);
+                text = PortReport.BuildBoardTree(board);
                 label = board.Title;
             }
             else if (endpoint != null)
